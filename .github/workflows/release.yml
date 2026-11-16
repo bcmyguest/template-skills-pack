@@ -1,0 +1,51 @@
+name: Release
+
+# Publishes a tag as a GitHub release with git-cliff notes. Skills install
+# from source (npx skills, the Claude Code marketplace), so nothing is built.
+# prepare-release.yml dispatches this on the tag; a manual tag push also works.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a vX.Y.Z tag ref
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          [ "$GITHUB_REF_TYPE" = tag ] || { echo "::error::run this workflow on a tag ref"; exit 1; }
+          [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$TAG is not vX.Y.Z"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: bash scripts/version-sync.sh "$GITHUB_REF_NAME"
+
+  github-release:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: git-cliff
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git-cliff --latest --strip header > notes.md
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md

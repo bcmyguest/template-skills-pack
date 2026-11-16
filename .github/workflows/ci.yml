@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 scripts/check-skills.py
+      - run: bash scripts/version-sync.sh
+
+  # A repo made from the template must run scripts/init.sh first.
+  placeholders:
+    if: ${{ !github.event.repository.is_template }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # init.sh deletes itself, and it rewrites every other tracked file, so its
+      # presence is the only check it cannot edit away.
+      - run: |
+          if [ -e scripts/init.sh ]; then
+            echo "::error::run scripts/init.sh <name> \"<description>\" first"
+            exit 1
+          fi

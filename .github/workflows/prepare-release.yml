@@ -1,0 +1,78 @@
+name: Prepare release
+
+# Manual release. git-cliff derives the next version from Conventional Commits
+# since the last tag (feat -> minor, fix -> patch; the first run tags v0.1.0),
+# then this workflow bumps plugin.json and marketplace.json, commits, tags and
+# dispatches release.yml.
+#
+# A tag pushed with GITHUB_TOKEN does not trigger `on: push: tags`, so this
+# workflow dispatches release.yml itself.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Compute the next version only: no commit, tag or release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  # git-cliff reads [remote.github] contributors through the API.
+  pull-requests: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: git-cliff
+
+      - name: Compute next version
+        id: ver
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag=$(git-cliff --bumped-version)
+          [ -n "$tag" ] || { echo "::error::git-cliff returned no version"; exit 1; }
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::no releasable commits since $tag"; exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          git-cliff --unreleased --tag "$tag" --strip header >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bump, commit, tag, push
+        if: ${{ !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          for f in .claude-plugin/plugin.json:.version .claude-plugin/marketplace.json:.metadata.version; do
+            jq --arg v "$VERSION" "${f#*:} = \$v" "${f%%:*}" > tmp.json && mv tmp.json "${f%%:*}"
+          done
+          bash scripts/version-sync.sh "$TAG"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git commit -am "chore(release): $TAG"
+          fi
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "HEAD:$GITHUB_REF_NAME" "$TAG"
+
+      - name: Dispatch release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref "${{ steps.ver.outputs.tag }}"

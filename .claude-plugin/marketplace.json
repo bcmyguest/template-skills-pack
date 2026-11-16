@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "template-skills-pack",
+  "owner": {
+    "name": "bcmyguest",
+    "url": "https://github.com/bcmyguest"
+  },
+  "metadata": {
+    "description": "__DESCRIPTION__",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "template-skills-pack",
+      "description": "__DESCRIPTION__",
+      "source": ".",
+      "strict": false
+    }
+  ]
+}

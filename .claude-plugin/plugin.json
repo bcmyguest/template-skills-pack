@@ -1,0 +1,10 @@
+{
+  "name": "template-skills-pack",
+  "version": "0.1.0",
+  "description": "__DESCRIPTION__",
+  "author": { "name": "bcmyguest" },
+  "homepage": "https://github.com/bcmyguest/template-skills-pack",
+  "repository": "https://github.com/bcmyguest/template-skills-pack",
+  "license": "Apache-2.0",
+  "skills": "./skills/"
+}
