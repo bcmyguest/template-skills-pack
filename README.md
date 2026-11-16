@@ -2,6 +2,10 @@
 
 __DESCRIPTION__
 
+A pack of agent skills. Claude Code installs it as a plugin; Codex, Cursor,
+opencode and other agents that read `SKILL.md` folders install it through
+skills.sh.
+
 <!-- template:start -->
 ## Using this template
 
